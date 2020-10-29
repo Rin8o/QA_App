@@ -25,6 +25,15 @@ import kotlinx.android.synthetic.*
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.activity_question_detail.*
 import kotlinx.android.synthetic.main.list_question_detail.*
+import android.provider.AlarmClock.EXTRA_MESSAGE
+import android.support.v4.app.SupportActivity
+import android.support.v4.app.SupportActivity.ExtraData
+import android.support.v4.content.ContextCompat.getSystemService
+import android.icu.lang.UCharacter.GraphemeClusterBreak.T
+import android.R.attr.name
+import android.app.Activity
+
+
 
 class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelectedListener {
 
@@ -211,8 +220,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             // Questionのインスタンスを渡して質問詳細画面を起動する
             val intent = Intent(applicationContext, QuestionDetailActivity::class.java)
             intent.putExtra("question", mQuestionArrayList[position])
-
-            startActivity(intent)
+            startActivityForResult(intent, 9)
         }
     }
 
@@ -221,7 +229,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         val navigationView = findViewById<NavigationView>(R.id.nav_view)
 
         // 1:趣味を既定の選択とする
-        if(mGenre == 0) {
+        if (mGenre == 0) {
             onNavigationItemSelected(navigationView.menu.getItem(0))
         }
 
@@ -229,31 +237,39 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         val user = FirebaseAuth.getInstance().currentUser
         val mNavigationView = findViewById<NavigationView>(R.id.nav_view)
 
-        if(user != null) { // ログインしている場合
+        if (user != null) { // ログインしている場合
             val userRef = mDatabaseReference.child(FavPATH).child(user!!.uid)
 
             userRef.addListenerForSingleValueEvent(object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
+                    favData.clear()
                     for (h in snapshot.children) {
                         val favkey = h.key.toString()
                         val value = h.child("genre").value
                         favData[favkey] = value.toString()
                     }
                 }
-
                 override fun onCancelled(firebaseError: DatabaseError) {}
             })
 
             // ドロワーメニュー「お気に入り」表示
             mNavigationView.setNavigationItemSelectedListener(this)
             mNavigationView.menu.findItem(R.id.nav_fav).setVisible(true)
-        }
-        else // ログインしていない場合
+        } else // ログインしていない場合
         {
             // ドロワーメニュー「お気に入り」非表示
             mNavigationView.setNavigationItemSelectedListener(this)
             mNavigationView.menu.findItem(R.id.nav_fav).setVisible(false)
         }
+
+        if(mGenre==5) {
+            mQuestionArrayList.clear()
+            for (i in 1..4) {
+                mGenreRef = mDatabaseReference.child(ContentsPATH).child(i.toString())
+                mGenreRef!!.addChildEventListener(mFavEventListener)
+            }
+        }
+
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -310,21 +326,32 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         mGenreRef = mDatabaseReference.child(ContentsPATH).child(mGenre.toString())
         mGenreRef!!.addChildEventListener(mEventListener)
 
-
         // メニューから「お気に入り」を選択した場合
         if(mGenre == 5) {
             // 追加ボタン非表示
             findViewById<View>(R.id.fab).visibility = View.INVISIBLE
 
-            mQuestionArrayList.clear()
             for (i in 1..4) {
                 mGenreRef = mDatabaseReference.child(ContentsPATH).child(i.toString())
                 mGenreRef!!.addChildEventListener(mFavEventListener)
             }
         }
         else
-        {findViewById<View>(R.id.fab).visibility = View.VISIBLE} // お気に入りボタン非表示
+        {findViewById<View>(R.id.fab).visibility = View.VISIBLE} // 追加ボタン表示
 
         return true
     }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (resultCode == Activity.RESULT_CANCELED) {
+            if(data!=null)
+            {
+                val abc = data.getSerializableExtra("fav") as HashMap<String, Any>
+                favData = abc as HashMap<String,String> // 戻るボタンを押されたときにfavData更新
+            }
+        }
+    }
+
 }

@@ -24,12 +24,20 @@ import kotlinx.android.synthetic.main.activity_question_detail.*
 import kotlinx.android.synthetic.main.list_question_detail.*
 
 import java.util.HashMap
+import android.support.v4.app.SupportActivity
+import android.support.v4.app.SupportActivity.ExtraData
+import android.support.v4.content.ContextCompat.getSystemService
+import android.icu.lang.UCharacter.GraphemeClusterBreak.T
+import android.R.attr.name
+import android.app.Activity
+
 
 class QuestionDetailActivity : AppCompatActivity() {
 
     private lateinit var mQuestion: Question
     private lateinit var mAdapter: QuestionDetailListAdapter
     private lateinit var mAnswerRef: DatabaseReference
+    private lateinit var mDatabaseReference: DatabaseReference
     private var fav = false // お気に入りチェック用変数
 
     private val mEventListener = object : ChildEventListener {
@@ -94,10 +102,8 @@ class QuestionDetailActivity : AppCompatActivity() {
                         add_Fav_button.isPressed = false // ボタンを通常状態に変更
                     }
                 }
-
                 override fun onCancelled(firebaseError: DatabaseError) {}
-            }
-            )
+            })
         }
         else{}
 
@@ -131,6 +137,22 @@ class QuestionDetailActivity : AppCompatActivity() {
                 data["genre"] = mQuestion.genre.toString()
                 favRef.setValue(data)
             }
+
+            // 戻るボタンを押したときの処理（favDataを戻す）
+            val userRef = dataBaseReference.child(FavPATH).child(user!!.uid)
+            var favData = HashMap<String,String>()
+            userRef.addListenerForSingleValueEvent(object : ValueEventListener {
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    for (h in snapshot.children) {
+                        val favkey = h.key.toString()
+                        val value = h.child("genre").value
+                        favData[favkey] = value.toString()
+                    }
+                }
+                override fun onCancelled(firebaseError: DatabaseError) {}
+            })
+            setResult(Activity.RESULT_CANCELED, intent ) // 戻るボタンを押したときの戻り値
+            intent.putExtra("fav", favData)
         }
         mAnswerRef = dataBaseReference.child(ContentsPATH).child(mQuestion.genre.toString()).child(mQuestion.questionUid).child(AnswersPATH)
         mAnswerRef.addChildEventListener(mEventListener)
@@ -160,8 +182,7 @@ class QuestionDetailActivity : AppCompatActivity() {
                 }
 
                 override fun onCancelled(firebaseError: DatabaseError) {}
-            }
-            )
+            })
         }
 
 
